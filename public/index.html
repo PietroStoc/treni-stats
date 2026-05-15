@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Statistiche Treni</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0d0f12;
+      --bg2:      #13161b;
+      --bg3:      #1a1e25;
+      --border:   #2a2f3a;
+      --text:     #e8eaf0;
+      --muted:    #6b7385;
+      --accent:   #00e5a0;
+      --accent2:  #6c63ff;
+      --warn:     #f59e0b;
+      --danger:   #ef4444;
+      --mono:     'IBM Plex Mono', monospace;
+      --sans:     'IBM Plex Sans', sans-serif;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 14px;
+      min-height: 100vh;
+    }
+
+    /* HEADER */
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 24px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg2);
+    }
+    .topbar-left {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .logo {
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--accent);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+    .divider-v {
+      width: 1px;
+      height: 18px;
+      background: var(--border);
+    }
+    .track-tabs {
+      display: flex;
+      gap: 4px;
+    }
+    .track-tab {
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .track-tab:hover { color: var(--text); border-color: #444; }
+    .track-tab.active {
+      background: var(--accent);
+      color: #000;
+      border-color: var(--accent);
+      font-weight: 500;
+    }
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .live-indicator {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .live-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--accent);
+      animation: blink 2s ease-in-out infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
+    .live-dot.inactive { background: var(--muted); animation: none; }
+    .last-update {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    /* LAYOUT */
+    .main {
+      padding: 20px 24px;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    /* KPI CARDS */
+    .kpi-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .kpi-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px 18px;
+      position: relative;
+      overflow: hidden;
+      transition: border-color 0.2s;
+    }
+    .kpi-card:hover { border-color: #3a4050; }
+    .kpi-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: var(--accent-bar, var(--border));
+      opacity: 0.7;
+    }
+    .kpi-card.green  { --accent-bar: var(--accent); }
+    .kpi-card.purple { --accent-bar: var(--accent2); }
+    .kpi-card.amber  { --accent-bar: var(--warn); }
+    .kpi-card.red    { --accent-bar: var(--danger); }
+
+    .kpi-label {
+      font-family: var(--mono);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+    .kpi-value {
+      font-family: var(--mono);
+      font-size: 28px;
+      font-weight: 500;
+      color: var(--text);
+      line-height: 1;
+      margin-bottom: 6px;
+    }
+    .kpi-sub {
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .kpi-flash {
+      animation: flash 0.4s ease;
+    }
+    @keyframes flash {
+      0% { color: var(--accent); }
+      100% { color: var(--text); }
+    }
+
+    /* CHARTS */
+    .charts-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 300px;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .chart-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px 18px;
+    }
+    .chart-title {
+      font-family: var(--mono);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 14px;
+    }
+    .chart-wrap {
+      position: relative;
+      height: 200px;
+    }
+
+    /* INTERVAL SPARKLINE */
+    .spark-title {
+      font-family: var(--mono);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+    .spark-wrap {
+      display: flex;
+      align-items: flex-end;
+      gap: 3px;
+      height: 80px;
+    }
+    .spark-bar {
+      flex: 1;
+      border-radius: 2px 2px 0 0;
+      background: var(--accent2);
+      opacity: 0.6;
+      min-height: 4px;
+      transition: height 0.3s, opacity 0.2s;
+    }
+    .spark-bar:hover { opacity: 1; }
+    .spark-stats {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 10px;
+    }
+    .spark-stat {
+      text-align: center;
+    }
+    .spark-stat-val {
+      font-family: var(--mono);
+      font-size: 15px;
+      font-weight: 500;
+      color: var(--text);
+    }
+    .spark-stat-lbl {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    /* LOG TABLE */
+    .log-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .log-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--border);
+    }
+    .log-title {
+      font-family: var(--mono);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+    }
+    .log-count {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    thead th {
+      font-family: var(--mono);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      padding: 8px 18px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+      font-weight: 400;
+    }
+    tbody tr {
+      border-bottom: 1px solid var(--border);
+      transition: background 0.15s;
+    }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: var(--bg3); }
+    tbody tr.new-row {
+      animation: rowIn 0.4s ease;
+    }
+    @keyframes rowIn {
+      from { background: rgba(0,229,160,0.08); }
+      to   { background: transparent; }
+    }
+    td {
+      padding: 9px 18px;
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--text);
+    }
+    .td-muted { color: var(--muted); }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-family: var(--mono);
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 3px;
+      font-weight: 500;
+    }
+    .badge-sinistra { background: rgba(108,99,255,0.15); color: #a09aff; border: 1px solid rgba(108,99,255,0.3); }
+    .badge-destra   { background: rgba(0,229,160,0.12); color: #00e5a0; border: 1px solid rgba(0,229,160,0.25); }
+    .badge-track    { background: rgba(255,255,255,0.05); color: var(--muted); border: 1px solid var(--border); }
+
+    /* CONNECTION STATUS BANNER */
+    .status-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 24px;
+      background: rgba(245,158,11,0.08);
+      border-bottom: 1px solid rgba(245,158,11,0.2);
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--warn);
+    }
+    .status-bar.connected {
+      background: rgba(0,229,160,0.06);
+      border-color: rgba(0,229,160,0.15);
+      color: var(--accent);
+    }
+    .status-bar.hidden { display: none; }
+
+    @media (max-width: 900px) {
+      .kpi-row { grid-template-columns: repeat(2, 1fr); }
+      .charts-row { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 500px) {
+      .kpi-row { grid-template-columns: 1fr 1fr; }
+      .topbar { flex-wrap: wrap; gap: 8px; }
+      .main { padding: 12px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- STATUS BAR -->
+<div class="status-bar" id="status-bar">
+  ⚠ Modalità demo — in attesa di connessione al backend (http://localhost:3000)
+</div>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="topbar-left">
+    <span class="logo">TrainStats</span>
+    <div class="divider-v"></div>
+    <div class="track-tabs">
+      <button class="track-tab active" onclick="setTrack('all', this)">Tutti</button>
+      <button class="track-tab" onclick="setTrack('track_1', this)">Binario 1</button>
+      <button class="track-tab" onclick="setTrack('track_2', this)">Binario 2</button>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <div class="live-indicator">
+      <div class="live-dot" id="live-dot"></div>
+      <span id="live-label">live</span>
+    </div>
+    <span class="last-update" id="last-update">--:--:--</span>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+
+  <!-- KPI -->
+  <div class="kpi-row">
+    <div class="kpi-card green">
+      <div class="kpi-label">Passaggi oggi</div>
+      <div class="kpi-value" id="kpi-total">0</div>
+      <div class="kpi-sub" id="kpi-total-sub">nessun dato</div>
+    </div>
+    <div class="kpi-card purple">
+      <div class="kpi-label">Intervallo medio</div>
+      <div class="kpi-value" id="kpi-avg">—</div>
+      <div class="kpi-sub">secondi tra passaggi</div>
+    </div>
+    <div class="kpi-card amber">
+      <div class="kpi-label">Ora di punta</div>
+      <div class="kpi-value" id="kpi-peak">—</div>
+      <div class="kpi-sub" id="kpi-peak-sub">passaggi nell'ora</div>
+    </div>
+    <div class="kpi-card red">
+      <div class="kpi-label">Ultimo passaggio</div>
+      <div class="kpi-value" id="kpi-last">—</div>
+      <div class="kpi-sub" id="kpi-last-sub">—</div>
+    </div>
+  </div>
+
+  <!-- CHARTS -->
+  <div class="charts-row">
+    <div class="chart-card">
+      <div class="chart-title">Passaggi per ora</div>
+      <div class="chart-wrap"><canvas id="hourChart"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Direzione</div>
+      <div class="chart-wrap"><canvas id="dirChart"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Ultimi intervalli (s)</div>
+      <div class="spark-wrap" id="sparkWrap"></div>
+      <div class="spark-stats">
+        <div class="spark-stat">
+          <div class="spark-stat-val" id="spark-min">—</div>
+          <div class="spark-stat-lbl">min</div>
+        </div>
+        <div class="spark-stat">
+          <div class="spark-stat-val" id="spark-avg">—</div>
+          <div class="spark-stat-lbl">media</div>
+        </div>
+        <div class="spark-stat">
+          <div class="spark-stat-val" id="spark-max">—</div>
+          <div class="spark-stat-lbl">max</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LOG -->
+  <div class="log-card">
+    <div class="log-header">
+      <span class="log-title">Log passaggi</span>
+      <span class="log-count" id="log-count">0 eventi</span>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Orario</th>
+          <th>Binario</th>
+          <th>Direzione</th>
+          <th>Intervallo</th>
+        </tr>
+      </thead>
+      <tbody id="log-body"></tbody>
+    </table>
+  </div>
+
+</div><!-- /main -->
+
+<script>
+  // ─── CONFIGURAZIONE ───────────────────────────────────────────────
+  const BACKEND_URL = 'http://localhost:3000';
+  const POLL_INTERVAL = 3000; // ms tra un aggiornamento e l'altro
+  const DEMO_MODE_SEED = true; // metti false quando hai il backend vero
+
+  // ─── STATO ───────────────────────────────────────────────────────
+  let events = [];
+  let filterTrack = 'all';
+  let hourChart, dirChart;
+  let backendConnected = false;
+  let lastEventCount = 0;
+
+  // ─── UTILS ───────────────────────────────────────────────────────
+  function rnd(a, b) { return Math.floor(Math.random() * (b - a + 1)) + a; }
+  function fmtTime(d) { return d.toTimeString().slice(0, 8); }
+  function fmtDate(d) {
+    return d.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' });
+  }
+
+  // ─── DATI DEMO ───────────────────────────────────────────────────
+  function seedDemoData() {
+    const dirs = ['sinistra', 'destra'];
+    const tracks = ['track_1', 'track_2'];
+    const now = new Date();
+    for (let i = 0; i < 32; i++) {
+      const t = new Date(now - rnd(300, 10800) * 1000);
+      events.push({
+        time: t,
+        track: tracks[rnd(0, 1)],
+        dir: dirs[rnd(0, 1)],
+        interval: rnd(12, 140)
+      });
+    }
+    events.sort((a, b) => b.time - a.time);
+  }
+
+  // ─── FETCH DAL BACKEND ────────────────────────────────────────────
+  async function fetchBackend() {
+    try {
+      const res = await fetch(BACKEND_URL + '/events', { signal: AbortSignal.timeout(2500) });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+
+      // Converti formato backend → formato interno
+      events = data.map(ev => ({
+        time: new Date((ev.timestamp || ev.received_at / 1000) * 1000),
+        track: ev.sensor_id || 'track_1',
+        dir: ev.direction || 'sinistra',
+        interval: Math.round((ev.interval_ms || 0) / 1000)
+      }));
+      events.sort((a, b) => b.time - a.time);
+
+      if (!backendConnected) {
+        backendConnected = true;
+        document.getElementById('status-bar').className = 'status-bar connected';
+        document.getElementById('status-bar').textContent = '✓ Connesso al backend — ' + BACKEND_URL;
+        document.getElementById('live-dot').classList.remove('inactive');
+      }
+    } catch (e) {
+      if (backendConnected) {
+        backendConnected = false;
+        document.getElementById('status-bar').className = 'status-bar';
+        document.getElementById('status-bar').textContent = '⚠ Backend non raggiungibile — ' + BACKEND_URL;
+        document.getElementById('live-dot').classList.add('inactive');
+      }
+    }
+  }
+
+  // ─── FILTRAGGIO ──────────────────────────────────────────────────
+  function getFiltered() {
+    if (filterTrack === 'all') return events;
+    return events.filter(e => e.track === filterTrack);
+  }
+
+  function setTrack(val, btn) {
+    filterTrack = val;
+    document.querySelectorAll('.track-tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    render();
+  }
+
+  // ─── KPI ─────────────────────────────────────────────────────────
+  function updateKPIs() {
+    const evs = getFiltered();
+    const totalEl = document.getElementById('kpi-total');
+
+    // Flash se nuovo evento
+    if (evs.length !== lastEventCount && lastEventCount > 0) {
+      totalEl.classList.remove('kpi-flash');
+      void totalEl.offsetWidth;
+      totalEl.classList.add('kpi-flash');
+    }
+    lastEventCount = evs.length;
+    totalEl.textContent = evs.length;
+    document.getElementById('kpi-total-sub').textContent =
+      evs.length > 0 ? 'ultimo: ' + fmtDate(evs[0].time) : 'nessun dato';
+
+    // Intervallo medio (ultimi 15)
+    const sample = evs.slice(0, 15).filter(e => e.interval > 0);
+    if (sample.length > 1) {
+      const avg = Math.round(sample.reduce((s, e) => s + e.interval, 0) / sample.length);
+      document.getElementById('kpi-avg').textContent = avg + 's';
+    } else {
+      document.getElementById('kpi-avg').textContent = '—';
+    }
+
+    // Ora di punta
+    const hc = new Array(24).fill(0);
+    evs.forEach(e => hc[e.time.getHours()]++);
+    const maxVal = Math.max(...hc);
+    if (maxVal > 0) {
+      const maxH = hc.indexOf(maxVal);
+      document.getElementById('kpi-peak').textContent = maxH + ':00';
+      document.getElementById('kpi-peak-sub').textContent = maxVal + ' passaggi nell\'ora';
+    }
+
+    // Ultimo passaggio
+    if (evs.length > 0) {
+      document.getElementById('kpi-last').textContent = fmtTime(evs[0].time);
+      document.getElementById('kpi-last-sub').textContent =
+        evs[0].dir + ' · ' + evs[0].track.replace('_', ' ');
+    }
+  }
+
+  // ─── TABELLA ─────────────────────────────────────────────────────
+  function updateTable() {
+    const evs = getFiltered().slice(0, 12);
+    document.getElementById('log-count').textContent = getFiltered().length + ' eventi';
+    const body = document.getElementById('log-body');
+    body.innerHTML = evs.map((e, i) => `
+      <tr class="${i === 0 && lastEventCount !== evs.length ? 'new-row' : ''}">
+        <td class="td-muted">${String(i + 1).padStart(2, '0')}</td>
+        <td>${fmtTime(e.time)}</td>
+        <td><span class="badge badge-track">${e.track.replace('_', ' ')}</span></td>
+        <td><span class="badge badge-${e.dir}">${e.dir}</span></td>
+        <td class="${e.interval < 30 ? '' : 'td-muted'}">${e.interval > 0 ? e.interval + 's' : '—'}</td>
+      </tr>
+    `).join('');
+  }
+
+  // ─── GRAFICO ORE ─────────────────────────────────────────────────
+  function updateHourChart() {
+    const evs = getFiltered();
+    const hc = new Array(24).fill(0);
+    evs.forEach(e => hc[e.time.getHours()]++);
+    const nowH = new Date().getHours();
+    const colors = hc.map((_, i) => i === nowH ? '#00e5a0' : '#6c63ff');
+    const alphas = hc.map((_, i) => i === nowH ? 0.9 : 0.4);
+
+    if (hourChart) {
+      hourChart.data.datasets[0].data = hc;
+      hourChart.data.datasets[0].backgroundColor = colors.map((c, i) =>
+        c + Math.round(alphas[i] * 255).toString(16).padStart(2, '0'));
+      hourChart.update('none');
+    } else {
+      hourChart = new Chart(document.getElementById('hourChart'), {
+        type: 'bar',
+        data: {
+          labels: Array.from({ length: 24 }, (_, i) => i + ':00'),
+          datasets: [{
+            data: hc,
+            backgroundColor: colors.map((c, i) =>
+              c + Math.round(alphas[i] * 255).toString(16).padStart(2, '0')),
+            borderRadius: 3,
+            borderSkipped: false
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: {
+            backgroundColor: '#1a1e25',
+            borderColor: '#2a2f3a', borderWidth: 1,
+            titleColor: '#6b7385', bodyColor: '#e8eaf0',
+            titleFont: { family: "'IBM Plex Mono'", size: 10 },
+            bodyFont: { family: "'IBM Plex Mono'", size: 12 },
+            callbacks: { title: c => c[0].label, label: c => c.raw + ' passaggi' }
+          }},
+          scales: {
+            x: {
+              grid: { display: false },
+              ticks: { maxTicksLimit: 8, color: '#6b7385', font: { family: "'IBM Plex Mono'", size: 10 } },
+              border: { color: '#2a2f3a' }
+            },
+            y: {
+              grid: { color: '#1e2228' },
+              ticks: { color: '#6b7385', font: { family: "'IBM Plex Mono'", size: 10 }, stepSize: 1 },
+              border: { color: '#2a2f3a' },
+              beginAtZero: true
+            }
+          }
+        }
+      });
+    }
+  }
+
+  // ─── GRAFICO DIREZIONE ───────────────────────────────────────────
+  function updateDirChart() {
+    const evs = getFiltered();
+    const dc = { sinistra: 0, destra: 0 };
+    evs.forEach(e => { if (dc[e.dir] !== undefined) dc[e.dir]++; });
+    const data = [dc.sinistra, dc.destra];
+    const total = data.reduce((a, b) => a + b, 1);
+
+    if (dirChart) {
+      dirChart.data.datasets[0].data = data;
+      dirChart.update('none');
+    } else {
+      dirChart = new Chart(document.getElementById('dirChart'), {
+        type: 'doughnut',
+        data: {
+          labels: ['Sinistra', 'Destra'],
+          datasets: [{
+            data,
+            backgroundColor: ['rgba(108,99,255,0.7)', 'rgba(0,229,160,0.7)'],
+            borderColor: ['#6c63ff', '#00e5a0'],
+            borderWidth: 1,
+            hoverOffset: 6
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          cutout: '65%',
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: {
+                color: '#6b7385',
+                font: { family: "'IBM Plex Mono'", size: 11 },
+                boxWidth: 10, padding: 14
+              }
+            },
+            tooltip: {
+              backgroundColor: '#1a1e25',
+              borderColor: '#2a2f3a', borderWidth: 1,
+              titleColor: '#6b7385', bodyColor: '#e8eaf0',
+              titleFont: { family: "'IBM Plex Mono'", size: 10 },
+              bodyFont: { family: "'IBM Plex Mono'", size: 12 },
+              callbacks: {
+                label: c => c.label + ': ' + c.raw + ' (' + Math.round(c.raw / total * 100) + '%)'
+              }
+            }
+          }
+        }
+      });
+    }
+  }
+
+  // ─── SPARKLINE INTERVALLI ─────────────────────────────────────────
+  function updateSparkline() {
+    const evs = getFiltered().filter(e => e.interval > 0).slice(0, 20);
+    const wrap = document.getElementById('sparkWrap');
+    if (evs.length === 0) { wrap.innerHTML = ''; return; }
+    const vals = evs.map(e => e.interval).reverse();
+    const maxV = Math.max(...vals);
+    const minV = Math.min(...vals);
+    const avgV = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
+    wrap.innerHTML = vals.map(v => {
+      const h = Math.max(4, Math.round((v / maxV) * 76));
+      return `<div class="spark-bar" style="height:${h}px" title="${v}s"></div>`;
+    }).join('');
+    document.getElementById('spark-min').textContent = minV + 's';
+    document.getElementById('spark-avg').textContent = avgV + 's';
+    document.getElementById('spark-max').textContent = maxV + 's';
+  }
+
+  // ─── RENDER COMPLETO ─────────────────────────────────────────────
+  function render() {
+    updateKPIs();
+    updateTable();
+    updateHourChart();
+    updateDirChart();
+    updateSparkline();
+    document.getElementById('last-update').textContent = fmtTime(new Date());
+  }
+
+  // ─── POLLING ─────────────────────────────────────────────────────
+  async function tick() {
+    await fetchBackend();
+    render();
+  }
+
+  // ─── AVVIO ───────────────────────────────────────────────────────
+  if (DEMO_MODE_SEED) seedDemoData();
+  setTimeout(render, 100);
+  setInterval(tick, POLL_INTERVAL);
+</script>
+</body>
+</html>
