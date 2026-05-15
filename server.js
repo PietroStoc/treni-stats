@@ -10,6 +10,7 @@ app.use(express.static('public'));
 
 const events = [];
 
+
 // L'ESP32 manda i dati qui
 app.post('/event', (req, res) => {
   const ev = { ...req.body, received_at: Date.now() };
